@@ -1,6 +1,8 @@
 # dns-mapping
 
-Mapping mail server dependencies using DNS data.
+Mapping mail server dependencies for Danish municipalities using DNS data.
+
+This fork focuses on municipality domains. The `domains.csv` file in this repository contains municipality domains that can be analyzed with the script.
 
 ## Prerequisites
 
@@ -13,12 +15,12 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ## Quick start
 
-1. Place your input file `domains.csv` in the project root with at least these columns:
+1. Ensure `domains.csv` is placed in the project root. The current dataset contains municipality domains and uses this schema:
 
 ```csv
-domain,rigsmyndighed
-example.com,0
-example.org,1
+domain
+aarhus.dk
+aalborg.dk
 ```
 
 2. Run the program using uv (no virtualenv activation needed):
@@ -32,7 +34,7 @@ This will resolve DNS records for each domain and produce:
 - `domain_dns_results.csv`
 - `analysis_results.csv`
 
-The script also prints comparative tables to `stdout`.
+The script also prints overall summary tables to `stdout`.
 
 ## Notes on dependencies
 
@@ -50,12 +52,11 @@ For each domain in `domains.csv`, the script:
 - Looks up `autodiscover.<domain>` `CNAME`
 - Writes normalized data to `domain_dns_results.csv`
 - Computes Microsoft 365 indicator columns and writes a full table to `analysis_results.csv`
-- Prints side-by-side summaries split by `rigsmyndighed`
+- Prints overall summaries across the municipality domains in the input file
 
 ## Input schema
 
-- **domain**: the domain to analyze (e.g., `example.com`)
-- **rigsmyndighed**: categorical flag (`0` or `1` as strings/ints). Other values will be treated as strings.
+- **domain**: the municipality domain to analyze (e.g., `aarhus.dk`)
 
 ## Output files
 

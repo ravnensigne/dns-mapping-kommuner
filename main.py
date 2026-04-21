@@ -4,17 +4,14 @@ import re
 from ipwhois import IPWhois
 
 def main():
-    # Load domains and create lookup map for rigsmyndighed field
+    # Load municipality domains from the input file
     domains_df = pd.read_csv("domains.csv")
-    rigsmyndighed_map = domains_df.set_index("domain")["rigsmyndighed"].to_dict()
     domains_to_check = domains_df["domain"].tolist()
     results = []
     total_domains = len(domains_to_check)
 
     for i, domain in enumerate(domains_to_check, 1):
         try:
-            rigsmyndighed = rigsmyndighed_map.get(domain, None)
-            
             # Parse MX records and extract the highest priority mail server
             mx_records_raw = pydig.query(domain, 'MX')
             mx_tuples = []
@@ -98,7 +95,6 @@ def main():
 
             results.append({
                 "domain": domain,
-                "rigsmyndighed": rigsmyndighed,
                 "MX": mx_records,
                 "autodiscover": autodiscover_records,
                 "SPF": spf_records,
@@ -108,10 +104,8 @@ def main():
 
             print(f"Processed domain {i} of {total_domains}: {domain}                ", end="\r")
         except Exception as e:
-            rigsmyndighed = rigsmyndighed_map.get(domain, None)
             results.append({
                 "domain": domain,
-                "rigsmyndighed": rigsmyndighed,
                 "MX": None,
                 "SPF": None,
                 "autodiscover": None,
@@ -179,47 +173,8 @@ def main():
     # Count total Microsoft indicators per domain
     results_df["microsoft_signs"] = results_df[["is_microsoft_365", "is_microsoft_autodiscover", "is_microsoft_spf", "is_microsoft_dkim"]].sum(axis=1)
     
-    # Generate analysis reports comparing rigsmyndighed groups
-    def print_two_tables_side_by_side(left_df, right_df, left_title, right_title, padding=4):
-        """Helper function to display two dataframes side by side for comparison"""
-        left_str = left_df.to_string(index=False)
-        right_str = right_df.to_string(index=False)
-        left_lines = left_str.splitlines() if left_str else []
-        right_lines = right_str.splitlines() if right_str else []
-        left_width = max((len(line) for line in left_lines), default=0)
-        right_width = max((len(line) for line in right_lines), default=0)
-        title_line = left_title.ljust(left_width) + (" " * padding) + right_title
-        print(title_line)
-        print(("-" * left_width) + (" " * padding) + ("-" * right_width))
-        max_lines = max(len(left_lines), len(right_lines))
-        for i in range(max_lines):
-            left_line = left_lines[i] if i < len(left_lines) else ""
-            right_line = right_lines[i] if i < len(right_lines) else ""
-            print(left_line.ljust(left_width) + (" " * padding) + right_line)
-
-    # Normalize rigsmyndighed for filtering as strings "0"/"1"
-    def normalize_rigs(value):
-        if pd.isna(value):
-            return ""
-        s = str(value).strip().lower()
-        if s in {"1", "1.0", "true", "yes"}:
-            return "1"
-        if s in {"0", "0.0", "false", "no"}:
-            return "0"
-        return s if s in {"0", "1"} else ""
-    rigs_col = results_df["rigsmyndighed"].apply(normalize_rigs)
-    
-    # Check if there are any rigsmyndighed values other than 0
-    has_rigsmyndighed = (rigs_col == "1").any()
-    
-    if has_rigsmyndighed:
-        # Display Microsoft detection summary comparing rigsmyndighed groups
-        print("\nMicrosoft detection summary (comparison)")
-        print("=" * 80)
-    else:
-        # Display Microsoft detection summary (overall)
-        print("\nMicrosoft detection summary (overall)")
-        print("=" * 80)
+    print("\nMicrosoft detection summary (overall)")
+    print("=" * 80)
     def build_summary(subset_df):
         """Build summary statistics for Microsoft detection indicators"""
         total = len(subset_df)
@@ -237,21 +192,12 @@ def main():
             {"metric": "exactly_4", "value": signs_4},
         ])[ ["metric", "value"] ]
     
-    if has_rigsmyndighed:
-        summary_left = build_summary(results_df[rigs_col == "0"]).copy()
-        summary_right = build_summary(results_df[rigs_col == "1"]).copy()
-        print_two_tables_side_by_side(summary_left, summary_right, "rigsmyndighed = 0", "rigsmyndighed = 1")
-    else:
-        summary_overall = build_summary(results_df).copy()
-        print(summary_overall.to_string(index=False))
+    summary_overall = build_summary(results_df).copy()
+    print(summary_overall.to_string(index=False))
     
-    # Signature type distribution (counts and percents) across groups
-    if has_rigsmyndighed:
-        print("\nSignature type distribution (comparison)")
-        print("=" * 80)
-    else:
-        print("\nSignature type distribution (overall)")
-        print("=" * 80)
+    # Signature type distribution (counts and percents) across all municipality domains
+    print("\nSignature type distribution (overall)")
+    print("=" * 80)
     
     signature_cols = [
         "is_microsoft_365",
@@ -272,21 +218,12 @@ def main():
             rows.append({"signature": sig, "count": count, "percent": percent})
         return pd.DataFrame(rows)[ ["signature", "count", "percent"] ]
     
-    if has_rigsmyndighed:
-        distro_left = build_signature_distribution(results_df[rigs_col == "0"]).copy()
-        distro_right = build_signature_distribution(results_df[rigs_col == "1"]).copy()
-        print_two_tables_side_by_side(distro_left, distro_right, "rigsmyndighed = 0", "rigsmyndighed = 1")
-    else:
-        distro_overall = build_signature_distribution(results_df).copy()
-        print(distro_overall.to_string(index=False))
+    distro_overall = build_signature_distribution(results_df).copy()
+    print(distro_overall.to_string(index=False))
     
-    # Display country distribution comparison
-    if has_rigsmyndighed:
-        print("\nCountry distribution comparison")
-        print("=" * 80)
-    else:
-        print("\nCountry distribution (overall)")
-        print("=" * 80)
+    # Display country distribution for all municipality domains
+    print("\nCountry distribution (overall)")
+    print("=" * 80)
     
     def build_country_table(subset_df):
         """Build country distribution table for domains with geolocation data"""
@@ -307,13 +244,8 @@ def main():
         ])[ ["country", "count", "percent"] ]
         return table
 
-    if has_rigsmyndighed:
-        country_left = build_country_table(results_df[rigs_col == "0"]).copy()
-        country_right = build_country_table(results_df[rigs_col == "1"]).copy()
-        print_two_tables_side_by_side(country_left, country_right, "rigsmyndighed = 0", "rigsmyndighed = 1")
-    else:
-        country_overall = build_country_table(results_df).copy()
-        print(country_overall.to_string(index=False))
+    country_overall = build_country_table(results_df).copy()
+    print(country_overall.to_string(index=False))
     
     # Save final analysis results
     results_df.to_csv("analysis_results.csv", index=False)
@@ -321,4 +253,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
